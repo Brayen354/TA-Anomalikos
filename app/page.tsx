@@ -1,65 +1,136 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import { asArray, hargaMin, kosBadge, kosPh, resolveKosId, fotoUrls, isFavorit } from "@/lib/kosan";
+import { useFavorit } from "@/hooks/useFavorit";
+import type { Kosan } from "@/types";
+import ListingCard from "@/components/ListingCard";
+import { EmptyState } from "@/components/ui";
+import { SkeletonGrid } from "@/components/Skeleton";
+import { IconArrowRight, IconSearch, IconHome } from "@/components/Icons";
+
+export default function HomePage() {
+  const router = useRouter();
+  const { toggle: toggleFav } = useFavorit();
+  const [q, setQ] = useState("");
+  const [kos, setKos] = useState<Kosan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api.get<Kosan[]>("/kosan", true);
+      setKos(asArray<Kosan>(res.data));
+    } catch {
+      setError("Gagal memuat daftar kos. Pastikan server backend berjalan.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const search = () => {
+    router.push(q.trim() ? `/cari?q=${encodeURIComponent(q.trim())}` : "/cari");
+  };
+
+  const featured = kos.slice(0, 6);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <>
+      <section className="hero wrap">
+        <h1 className="reveal" style={{ animationDelay: ".05s" }}>
+          Cari kost <em>ternyaman</em> kamu.
+        </h1>
+        <p className="reveal" style={{ animationDelay: ".16s" }}>
+          Hunian modern di lokasi strategis, dirancang untuk kamu yang ingin
+          tinggal lebih praktis, produktif, dan penuh kenyamanan.
+        </p>
+        <div className="search reveal" style={{ animationDelay: ".28s" }}>
+          <IconSearch size={18} />
+          <input
+            type="text"
+            placeholder="Mau cari kost di mana?"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && search()}
+          />
+          <button className="btn btn-dark" onClick={search}>
+            Cari
+          </button>
+        </div>
+      </section>
+
+      <section className="wrap section">
+        <div className="sec-head">
+          <div>
+            <h2>Kost Unggulan</h2>
+            <div className="sub">
+              Pilihan premium yang sesuai dengan gaya hidupmu
+            </div>
+          </div>
+          <Link href="/cari" className="see-all">
+            Lihat Semua <IconArrowRight size={15} />
+          </Link>
+        </div>
+
+        {loading ? (
+          <SkeletonGrid count={3} />
+        ) : error ? (
+          <EmptyState icon={<IconHome size={40} />} title="Tidak dapat memuat data">
+            {error}
+            <br />
+            <button className="btn btn-dark" onClick={load}>
+              Coba Lagi
+            </button>
+          </EmptyState>
+        ) : featured.length === 0 ? (
+          <EmptyState icon={<IconHome size={40} />} title="Belum ada kos">
+            Belum ada kos yang tersedia saat ini.
+          </EmptyState>
+        ) : (
+          <div className="grid grid-3">
+            {featured.map((k) => {
+              const kid = resolveKosId(k) ?? k.id;
+              return (
+                <ListingCard
+                  key={kid}
+                  href={`/kos/${kid}`}
+                  phClass={kosPh(k)}
+                  imageUrl={fotoUrls(k)[0] ?? null}
+                  badge={kosBadge(k)}
+                  title={k.nama_kosan}
+                  location={k.alamat}
+                  price={hargaMin(k)}
+                  initialFav={isFavorit(k)}
+                  onToggleFav={kid != null ? (next) => toggleFav(kid, next) : undefined}
+                />
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="wrap section">
+        <div className="cta">
+          <h2>Punya Kost Sendiri?</h2>
+          <p>
+            Bergabung bersama Party Kosan dan jangkau lebih banyak calon penyewa
+            berkualitas. Kami membantu kamu mengelola properti dengan dashboard
+            premium dan sistem listing yang terverifikasi.
           </p>
+          <Link className="btn btn-mint" href="/kos-saya/daftar">
+            Daftarkan Kost
+          </Link>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </section>
+    </>
   );
 }
